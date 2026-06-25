@@ -26,6 +26,17 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 	return 1;
 }
 
+public OnPedestrianDeath(pedestrianid, killerid, weaponid)
+{
+    new str[128];
+    format(str, sizeof(str), "%d killed Pedestrian ID %d with Gun ID %d!", killerid, pedestrianid, weaponid);
+    SendClientMessage(killerid, -1, str);
+
+    GivePlayerMoney(killerid, 500);
+    
+    return 1;
+}
+
 public OnPedestrianGetDamage(pedestrianid, playerid, type)
 {
 	StopPedestrian(pedestrianid);
