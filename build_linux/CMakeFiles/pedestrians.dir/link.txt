@@ -1,0 +1,1 @@
+/usr/bin/g++ -fPIC  -m32 -m32 -shared -Wl,-soname,libpedestrians.so -o libpedestrians.so CMakeFiles/pedestrians.dir/src/main.cpp.o CMakeFiles/pedestrians.dir/sdk/amxplugin.cpp.o 
