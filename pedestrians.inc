@@ -13,9 +13,11 @@ new Float:LastActorAngle[1000];
 new ActorFallenTick[MAX_STREAM_ACTORS];
 new ActorWalkStyle[MAX_STREAM_ACTORS];
 new ActorTargetNode[MAX_STREAM_ACTORS];
+new Float:ActorHealth[MAX_STREAM_ACTORS];
+new bool:ActorIsDead[MAX_STREAM_ACTORS];
 
 forward OnPedestrianHitByVeh(playerid, pedestrianid);
-
+forward OnPedestrianDeath(pedestrianid, killerid, weaponid);
 enum
 {
 	WALK_PLAYER = 0,
@@ -98,6 +100,15 @@ stock GetClosestPedestrianID(playerid)
 	return closest;
 }
 
+stock IsMalePedestrian(pedestrianid)
+{
+    new skin = GetActorSkin(pedestrianid);
+    for(new i = 0; i < sizeof(MaleSkins); i++) {
+        if(MaleSkins[i][0] == skin) return 1;
+    }
+    return 0; // Berarti female
+}
+
 stock StopPedestrian(pedestrianid)
 {
 	Path_SetActorSpeed(pedestrianid, 0.0);
@@ -117,7 +128,21 @@ stock GetPedestrianNode(pedestrianid)
 {
 	return Path_GetActorNode(pedestrianid);
 }
+stock ResetPedestrianSlot(slotId)
+{
+    if(slotId < 0 || slotId >= MAX_STREAM_ACTORS) return 0;
 
+    
+    Path_StopActorWalk(StreamActors[slotId]); 
+    
+  
+    ActorInUse[slotId] = false;
+    ActorFallenTick[slotId] = 0;
+    ActorTargetNode[slotId] = 0;
+    ActorHealth[slotId] = 100.0; 
+    ClearActorAnimations(StreamActors[slotId]);
+    return 1;
+}
 // Helper function removed in favor of 2D arrays
 stock ApplyPedestrianAnim(pedestrianid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time)
 {
@@ -131,6 +156,7 @@ stock InitPedestrians()
 		// Spawn far away under the map
 		StreamActors[i] = CreateActor(101, 0.0, 0.0, -1000.0, 0.0);
 		SetActorInvulnerable(StreamActors[i], false);
+		ActorHealth[i] = 100.0;
 		ActorInUse[i] = false;
 	}
 	
@@ -148,6 +174,7 @@ public StreamActorsTimer()
 	for(new a=0; a<MAX_STREAM_ACTORS; a++)
 	{
 		if(!ActorInUse[a]) continue;
+    	if(ActorIsDead[a]) continue;
 		
 		new bool:nearPlayer = false;
 		for(new p=0; p<MAX_PLAYERS; p++)
@@ -265,7 +292,7 @@ public StreamActorsTimer()
 						skin = FemaleSkins[idx][0];
 						walkStyle = FemaleSkins[idx][1];
 					}
-					
+					ResetPedestrianSlot(slot);
 					DestroyActor(StreamActors[slot]);
 					StreamActors[slot] = CreateActor(skin, nx, ny, nz + 1.0, 0.0);
 					SetActorInvulnerable(StreamActors[slot], false);
@@ -296,7 +323,7 @@ public ActorPhysicsTimer()
 	// Check vehicle collisions and fallen recovery
 	for(new a=0; a<MAX_STREAM_ACTORS; a++) {
 		if(!ActorInUse[a]) continue;
-		
+		if(ActorIsDead[a]) continue;
 		if (ActorFallenTick[a] > 0) {
 			if (tick - ActorFallenTick[a] > 2500) { // 2.5 seconds on the ground
 				ActorFallenTick[a] = 0;
@@ -388,6 +415,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 	for(new a=0; a<MAX_STREAM_ACTORS; a++)
 	{
 		if(!ActorInUse[a]) continue;
+		if(ActorIsDead[a]) continue;
 		new Float:ax, Float:ay, Float:az;
 		GetActorPos(StreamActors[a], ax, ay, az);
 		
@@ -415,20 +443,104 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 #if defined ped_OnPlayerWeaponShot
 	forward ped_OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY, Float:fZ);
 #endif
+forward DespawnDeadPedestrian(slotId);
+public DespawnDeadPedestrian(slotId)
+{
+    ClearActorAnimations(StreamActors[slotId]);
+    ActorIsDead[slotId] = false;
+    new targetPlayer = -1;
+    for(new i = 0; i < MAX_PLAYERS; i++) {
+        if(IsPlayerConnected(i) && GetPlayerState(i) != PLAYER_STATE_NONE && GetPlayerState(i) != PLAYER_STATE_WASTED) {
+            targetPlayer = i;
+            break; // Ambil player pertama yang ketemu
+        }
+    }
 
+  
+    if(targetPlayer != -1)
+    {
+        new Float:px, Float:py, Float:pz;
+        GetPlayerPos(targetPlayer, px, py, pz);
+
+        new nodes[20];
+        // Cari node jalanan dalam radius 200m dari player tersebut
+        new count = Path_GetNodesInRange(px, py, pz, 200.0, nodes, sizeof(nodes));
+
+        if(count > 0)
+        {
+            
+            new randomNode = nodes[random(count)];
+            new Float:nx, Float:ny, Float:nz;
+
+            if(Path_GetNodePos(randomNode, nx, ny, nz))
+            {
+               
+                new newSkin, walkStyle;
+                if(random(2) == 0) {
+                    new idx = random(sizeof(MaleSkins));
+                    newSkin = MaleSkins[idx][0];
+                    walkStyle = MaleSkins[idx][1];
+                } else {
+                    new idx = random(sizeof(FemaleSkins));
+                    newSkin = FemaleSkins[idx][0];
+                    walkStyle = FemaleSkins[idx][1];
+                }
+                SetActorVirtualWorld(StreamActors[slotId], GetPlayerVirtualWorld(targetPlayer));
+                ActorHealth[slotId] = 100.0;
+                ActorFallenTick[slotId] = 0;
+                ActorTargetNode[slotId] = 0;
+                ActorWalkStyle[slotId] = walkStyle;
+
+               
+                SetActorPos(StreamActors[slotId], nx, ny, nz + 1.0);
+               
+                new walkAnim[32];
+                format(walkAnim, sizeof(walkAnim), "%s", NameAnimations[walkStyle]);
+                ApplyActorAnimation(StreamActors[slotId], "PED", walkAnim, 4.1, 1, 1, 1, 0, 0);
+                
+                Path_SetActorWalk(StreamActors[slotId], randomNode, 1.2);
+                ActorInUse[slotId] = true;
+                return 1;
+            }
+        }
+    }
+    
+    SetActorPos(StreamActors[slotId], 0.0, 0.0, 0.0);
+    SetActorVirtualWorld(StreamActors[slotId], 999999); 
+    ActorInUse[slotId] = false; 
+    return 1;
+}
 public OnPlayerGiveDamageActor(playerid, damaged_actorid, Float:amount, weaponid, bodypart)
 {
-	new bool:isPed = false;
+	new slotId = -1;
 	for(new a=0; a<MAX_STREAM_ACTORS; a++) {
 		if(ActorInUse[a] && StreamActors[a] == damaged_actorid) {
-			isPed = true;
+			slotId = a;
 			break;
 		}
 	}
 	
-	if(isPed) {
-		new type = (weaponid == 0) ? 0 : 1;
-		CallLocalFunction("OnPedestrianGetDamage", "iii", damaged_actorid, playerid, type);
+	if(slotId != -1) {
+		
+		ActorHealth[slotId] -= amount;
+
+		if(ActorHealth[slotId] <= 0.0) 
+		{
+		    Path_StopActorWalk(damaged_actorid); 
+		    ApplyActorAnimation(damaged_actorid, "PED", "KO_shot_face", 4.1, 0, 1, 1, 1, 0); 
+		    
+		    ActorIsDead[slotId] = true;
+		    CallLocalFunction("OnPedestrianDeath", "iii", damaged_actorid, playerid, weaponid);
+		    
+		   
+		    SetTimerEx("DespawnDeadPedestrian", 10000, false, "i", slotId);
+		}
+		else 
+		{
+			
+			new type = (weaponid == 0) ? 0 : 1;
+			CallLocalFunction("OnPedestrianGetDamage", "iii", damaged_actorid, playerid, type);
+		}
 	}
 	
 	#if defined ped_OnPlayerGiveDamageActor
