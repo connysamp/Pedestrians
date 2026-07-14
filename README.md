@@ -36,58 +36,75 @@ The biggest advantage of this system is that it uses SA-MP "Actors" instead of s
 
 ## PAWN Functions
 
-### InitPedestrians()
-Initializes the system. Must be called under OnGameModeInit().
 ```pawn
-public OnGameModeInit() {
-    InitPedestrians();
-    return 1;
-}
+native InitPedestrians();
 ```
+* **Description:** Initializes the system. Must be called under `OnGameModeInit()`.
 
-### IgnorePedestrianNode(nodeid)
-Ignores a specific node so pedestrians will never walk on it. Great if you have custom maps placed on existing sidewalks. Must be called under OnGameModeInit().
 ```pawn
-IgnorePedestrianNode(3016528);
-IgnorePedestrianNode(3016545);
+native IgnorePedestrianNode(nodeid);
 ```
+* **Description:** Ignores a specific node so pedestrians will never walk on it. Great if you have custom maps placed on existing sidewalks. Must be called under `OnGameModeInit()`.
 
-### GetPedestrianNode(pedestrianid)
-Returns the ID of the destination node the pedestrian is currently walking towards.
+```pawn
+native GetPedestrianNode(pedestrianid);
+```
+* **Description:** Returns the ID of the destination node the pedestrian is currently walking towards.
 
-### StopPedestrian(pedestrianid)
-Immediately stops the pedestrian (sets speed to 0.0).
+```pawn
+native StopPedestrian(pedestrianid);
+```
+* **Description:** Immediately stops the pedestrian (sets speed to 0.0).
 
-### ResumePedestrian(pedestrianid)
-Resumes the pedestrian's walk towards their target node (restores speed to 1.2).
+```pawn
+native ResumePedestrian(pedestrianid);
+```
+* **Description:** Resumes the pedestrian's walk towards their target node (restores speed to 1.2).
 
-### ApplyPedestrianAnim(pedestrianid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time)
-Easily applies a specific animation to the pedestrian (wrapper for ApplyActorAnimation).
+```pawn
+native ApplyPedestrianAnim(pedestrianid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time);
+```
+* **Description:** Easily applies a specific animation to the pedestrian (wrapper for `ApplyActorAnimation`).
 
-### GetClosestPedestrianID(playerid)
-Returns the ID of the pedestrian (actor) closest to a specific player.
+```pawn
+native GetClosestPedestrianID(playerid);
+```
+* **Description:** Returns the ID of the pedestrian (actor) closest to a specific player.
 
-### SetPedestrianHealth(actorid, Float:health)
-Sets the health of the pedestrian.
+```pawn
+native SetPedestrianHealth(actorid, Float:health);
+```
+* **Description:** Sets the health of the pedestrian.
 
-### GetPedestrianHealth(actorid)
-Returns the current health of the pedestrian.
+```pawn
+native Float:GetPedestrianHealth(actorid);
+```
+* **Description:** Returns the current health of the pedestrian.
 
-### SetPedestrianSpeed(actorid, Float:speed)
-Changes the current movement speed of the pedestrian (default walking is 1.2, panic sprint is 5.0).
+```pawn
+native SetPedestrianSpeed(actorid, Float:speed);
+```
+* **Description:** Changes the current movement speed of the pedestrian (default walking is 1.2, panic sprint is 5.0).
 
-### MakePedestrianPanic(actorid, duration_ms)
-Forces a pedestrian into a panic state (sprinting away) for the specified duration in milliseconds.
+```pawn
+native MakePedestrianPanic(actorid, duration_ms);
+```
+* **Description:** Forces a pedestrian into a panic state (sprinting away) for the specified duration in milliseconds.
 
-### IsPedestrianPanicking(actorid)
-Returns 1 if the pedestrian is currently in a panic state, otherwise 0.
+```pawn
+native IsPedestrianPanicking(actorid);
+```
+* **Description:** Returns 1 if the pedestrian is currently in a panic state, otherwise 0.
 
-### SetPedestrianSkin(actorid, skinid)
-Dynamically changes the skin of an existing pedestrian, recreating them and reapplying their current animation state.
+```pawn
+native SetPedestrianSkin(actorid, skinid);
+```
+* **Description:** Dynamically changes the skin of an existing pedestrian, recreating them and reapplying their current animation state.
 
-### IsPlayerInFrontOfPed(playerid, actorid)
-Checks if the specified player is physically in front of the pedestrian within their 180-degree visual cone and close range (returns 1 if true, 0 if behind or far away).
-Returns the ID of the pedestrian (actor) closest to a specific player.
+```pawn
+native IsPlayerInFrontOfPed(playerid, actorid);
+```
+* **Description:** Checks if the specified player is physically in front of the pedestrian within their 180-degree visual cone and close range. Returns 1 if true, 0 if behind or far away.
 
 ---
 
