@@ -5,3 +5,6 @@ EXPORTS
     AmxLoad
     AmxUnload
     ProcessTick
+    OnGameModeInit
+    OnPlayerWeaponShot
+    OnPlayerGiveDamageActor

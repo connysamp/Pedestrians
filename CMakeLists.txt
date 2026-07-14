@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
-project(pedestrians CXX)
+project(pedestrians C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(pedestrians SHARED src/main.cpp sdk/amxplugin.cpp)
+add_library(pedestrians SHARED src/main.cpp sdk/amxplugin.cpp sdk/sampgdk/sampgdk.c)
 
-target_include_directories(pedestrians PRIVATE sdk src)
+target_include_directories(pedestrians PRIVATE sdk src sdk/sampgdk)
+target_compile_definitions(pedestrians PRIVATE SAMPGDK_AMALGAMATION)
 
 # For SA:MP plugins on Windows, we need to output a .dll
 if(WIN32)

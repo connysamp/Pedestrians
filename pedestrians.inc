@@ -5,19 +5,6 @@
 
 #include <a_samp>
 
-#define MAX_STREAM_ACTORS 500
-
-new StreamActors[MAX_STREAM_ACTORS];
-new bool:ActorInUse[MAX_STREAM_ACTORS];
-new Float:LastActorAngle[1000];
-new ActorFallenTick[MAX_STREAM_ACTORS];
-new ActorWalkStyle[MAX_STREAM_ACTORS];
-new ActorTargetNode[MAX_STREAM_ACTORS];
-new Float:ActorHealth[MAX_STREAM_ACTORS];
-new bool:ActorIsDead[MAX_STREAM_ACTORS];
-
-forward OnPedestrianHitByVeh(playerid, pedestrianid);
-forward OnPedestrianDeath(pedestrianid, killerid, weaponid);
 enum
 {
 	WALK_PLAYER = 0,
@@ -38,15 +25,6 @@ enum
 	WALK_WUZI
 };
 
-static const NameAnimations[][] =
-{
-    "WALK_player", "WALK_civi", "WALK_gang1", "WALK_gang2",
-    "WALK_old", "WALK_fatold", "WALK_fat", "WOMAN_walkold",
-    "WOMAN_walkfatold", "WALK_shuffle", "WOMAN_walknorm",
-    "WOMAN_walkbusy", "WOMAN_walkpro", "WOMAN_walksexy",
-    "WALK_drunk", "WALK_Wuzi"
-};
-
 new MaleSkins[][2] = {
 	{1, WALK_OLD}, {2, WALK_CIVI}, {7, WALK_CIVI}, {14, WALK_CIVI}, {15, WALK_CIVI},
 	{18, WALK_GANG1}, {20, WALK_GANG2}, {21, WALK_GANG1}, {22, WALK_GANG2}, {23, WALK_CIVI},
@@ -63,550 +41,50 @@ new FemaleSkins[][2] = {
 	{92, WOMAN_WALKSEXY}
 };
 
-new StreamTimer;
-new bool:BenchmarkMode = false;
+#define PED_STATE_WALKING 1
+#define PED_STATE_PANIC 2
+#define PED_STATE_FALLEN 3
+#define PED_STATE_STOPPED 4
+#define PED_STATE_DEAD 5
 
-// Native declarations for the C++ plugin
-native Path_GetNodesInRange(Float:x, Float:y, Float:z, Float:radius, result[], max_size);
-native Path_GetNodePos(node_id, &Float:x, &Float:y, &Float:z);
-native Path_SetActorWalk(actorid, start_node_id, Float:speed);
-native Path_StopActorWalk(actorid);
-native Path_ProcessActors(actors[], Float:xs[], Float:ys[], Float:zs[], Float:angles[], &count, max_size);
-native Path_SetActorSpeed(actorid, Float:speed);
+native Path_AddMaleSkin(skinid, walkstyle);
+native Path_AddFemaleSkin(skinid, walkstyle);
 native Path_IgnoreNode(nodeid);
-native Path_GetActorNode(actorid);
+
+native PrintIgnoredNodesCount();
+native SetPedestrianHealth(actorid, Float:health);
+native Float:GetPedestrianHealth(actorid);
+native SetPedestrianSpeed(actorid, Float:speed);
+native MakePedestrianPanic(actorid, duration_ms);
+native IsPedestrianPanicking(actorid);
+native SetPedestrianSkin(actorid, skinid);
+native GetPedestrianNode(actorid);
+native GetClosestPedestrianID(playerid);
+native GetPedestrianSex(actorid);
+native StopPedestrian(actorid);
+native ResumePedestrian(actorid);
+native ApplyPedestrianAnim(actorid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time);
+native IsPlayerInFrontOfPed(playerid, actorid);
+
 forward OnPedestrianGetDamage(pedestrianid, playerid, type);
+forward OnPedestrianHitByVeh(playerid, vehicleid, actorid);
+forward OnPlayerAimPedestrian(playerid, pedestrianid);
+forward OnPedestrianStateChange(actorid, oldstate, newstate);
+forward OnPedestrianDeath(actorid, killerid, reason);
 
-stock GetClosestPedestrianID(playerid)
+stock InitPedestrians()
 {
-	if(!IsPlayerConnected(playerid)) return -1;
-	new Float:px, Float:py, Float:pz;
-	GetPlayerPos(playerid, px, py, pz);
-	
-	new closest = -1;
-	new Float:minDist = 99999.0;
-	
-	for(new a=0; a<MAX_STREAM_ACTORS; a++)
-	{
-		if(!ActorInUse[a]) continue;
-		new Float:ax, Float:ay, Float:az;
-		GetActorPos(StreamActors[a], ax, ay, az);
-		new Float:dist = floatsqroot(floatpower(ax - px, 2.0) + floatpower(ay - py, 2.0) + floatpower(az - pz, 2.0));
-		if(dist < minDist) {
-			minDist = dist;
-			closest = StreamActors[a];
-		}
+	for(new i=0; i<sizeof(MaleSkins); i++) {
+		Path_AddMaleSkin(MaleSkins[i][0], MaleSkins[i][1]);
 	}
-	return closest;
-}
-
-stock IsMalePedestrian(pedestrianid)
-{
-    new skin = GetActorSkin(pedestrianid);
-    for(new i = 0; i < sizeof(MaleSkins); i++) {
-        if(MaleSkins[i][0] == skin) return 1;
-    }
-    return 0; // Berarti female
-}
-
-stock StopPedestrian(pedestrianid)
-{
-	Path_SetActorSpeed(pedestrianid, 0.0);
-}
-
-stock ResumePedestrian(pedestrianid)
-{
-	Path_SetActorSpeed(pedestrianid, 1.2);
+	for(new i=0; i<sizeof(FemaleSkins); i++) {
+		Path_AddFemaleSkin(FemaleSkins[i][0], FemaleSkins[i][1]);
+	}
+	print("[Pedestrians] PAWN Configuration loaded.");
+	PrintIgnoredNodesCount();
 }
 
 stock IgnorePedestrianNode(nodeid)
 {
 	Path_IgnoreNode(nodeid);
 }
-
-stock GetPedestrianNode(pedestrianid)
-{
-	return Path_GetActorNode(pedestrianid);
-}
-stock ResetPedestrianSlot(slotId)
-{
-    if(slotId < 0 || slotId >= MAX_STREAM_ACTORS) return 0;
-
-    
-    Path_StopActorWalk(StreamActors[slotId]); 
-    
-  
-    ActorInUse[slotId] = false;
-    ActorFallenTick[slotId] = 0;
-    ActorTargetNode[slotId] = 0;
-    ActorHealth[slotId] = 100.0; 
-    ClearActorAnimations(StreamActors[slotId]);
-    return 1;
-}
-// Helper function removed in favor of 2D arrays
-stock ApplyPedestrianAnim(pedestrianid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time)
-{
-	ApplyActorAnimation(pedestrianid, animlib, animname, fDelta, loop, lockx, locky, freeze, time);
-}
-
-stock InitPedestrians()
-{
-	for(new i=0; i<MAX_STREAM_ACTORS; i++)
-	{
-		// Spawn far away under the map
-		StreamActors[i] = CreateActor(101, 0.0, 0.0, -1000.0, 0.0);
-		SetActorInvulnerable(StreamActors[i], false);
-		ActorHealth[i] = 100.0;
-		ActorInUse[i] = false;
-	}
-	
-	// Timer principali
-	SetTimer("ActorPhysicsTimer", 80, true);
-	StreamTimer = SetTimer("StreamActorsTimer", 1000, true);
-	
-	print("[Pedestrians] Initialized in PAWN.");
-}
-
-forward StreamActorsTimer();
-public StreamActorsTimer()
-{
-	// 1. Despawn actors that are too far from ALL players
-	for(new a=0; a<MAX_STREAM_ACTORS; a++)
-	{
-		if(!ActorInUse[a]) continue;
-    	if(ActorIsDead[a]) continue;
-		
-		new bool:nearPlayer = false;
-		for(new p=0; p<MAX_PLAYERS; p++)
-		{
-			if(!IsPlayerConnected(p)) continue;
-			new Float:px, Float:py, Float:pz;
-			GetPlayerPos(p, px, py, pz);
-			
-			new Float:ax, Float:ay, Float:az;
-			GetActorPos(StreamActors[a], ax, ay, az);
-			
-			new Float:dx = ax - px;
-			new Float:dy = ay - py;
-			if(floatpower(dx, 2.0) + floatpower(dy, 2.0) < 220.0 * 220.0) { // Keep them active up to 220m
-				nearPlayer = true;
-				break;
-			}
-		}
-		
-		if(!nearPlayer) {
-			SetActorPos(StreamActors[a], 0.0, 0.0, -1000.0);
-			Path_StopActorWalk(StreamActors[a]);
-			ActorInUse[a] = false;
-		}
-	}
-	
-	// 2. Spawn actors near players if density is low
-	for(new i=0; i<MAX_PLAYERS; i++)
-	{
-		if(!IsPlayerConnected(i)) continue;
-		if(GetPlayerState(i) == PLAYER_STATE_NONE || GetPlayerState(i) == PLAYER_STATE_WASTED || GetPlayerState(i) == PLAYER_STATE_SPECTATING) continue;
-		
-		new Float:px, Float:py, Float:pz;
-		GetPlayerPos(i, px, py, pz);
-		
-		new actorsNear = 0;
-		for(new a=0; a<MAX_STREAM_ACTORS; a++)
-		{
-			if(!ActorInUse[a]) continue;
-			new Float:ax, Float:ay, Float:az;
-			GetActorPos(StreamActors[a], ax, ay, az);
-			new Float:dx = ax - px;
-			new Float:dy = ay - py;
-			if(floatpower(dx, 2.0) + floatpower(dy, 2.0) < 120.0 * 120.0) actorsNear++; // Density checked in 120m radius
-		}
-		
-		new targetActors = 20;
-		
-		if (actorsNear < targetActors)
-		{
-			// Predictive Spawning: project the search center forward based on velocity
-			new Float:vx, Float:vy, Float:vz;
-			GetPlayerVelocity(i, vx, vy, vz);
-			
-			new Float:searchX = px;
-			new Float:searchY = py;
-			new Float:speed = floatsqroot(vx*vx + vy*vy);
-			
-			// If moving fast enough to predict
-			if (speed > 0.05)
-			{
-				new Float:aheadMeters = speed * 250.0; // Math projection factor
-				if (aheadMeters > 150.0) aheadMeters = 150.0; // Cap to 150m ahead
-				
-				// Normalize direction and multiply by distance
-				new Float:dirX = vx / speed;
-				new Float:dirY = vy / speed;
-				
-				searchX += dirX * aheadMeters;
-				searchY += dirY * aheadMeters;
-			}
-			
-			new nodes[200];
-			new count = Path_GetNodesInRange(searchX, searchY, pz, 300.0, nodes, sizeof(nodes));
-			
-			for(new n=0; n<count && actorsNear < targetActors; n++)
-			{
-				new Float:nx, Float:ny, Float:nz;
-				if(Path_GetNodePos(nodes[n], nx, ny, nz))
-				{
-					// Distance check so we don't spawn them right in the player's face
-					new Float:dist = floatsqroot(floatpower(nx - px, 2.0) + floatpower(ny - py, 2.0));
-					if (dist < 35.0) continue; // Spawna appena fuori dal campo visivo immediato
-					
-					// Anti-ammucchiamento: controlliamo se c'è già un pedone vicinissimo a questo nodo
-					new bool:nodeOccupied = false;
-					for(new a=0; a<MAX_STREAM_ACTORS; a++) {
-						if(ActorInUse[a]) {
-							new Float:ax, Float:ay, Float:az;
-							GetActorPos(StreamActors[a], ax, ay, az);
-							if(floatpower(nx - ax, 2.0) + floatpower(ny - ay, 2.0) < 25.0 * 25.0) {
-								nodeOccupied = true;
-								break;
-							}
-						}
-					}
-					if(nodeOccupied) continue; // Salta questo nodo, è già pieno!
-					
-					new slot = -1;
-					for(new a=0; a<MAX_STREAM_ACTORS; a++) {
-						if(!ActorInUse[a]) {
-							slot = a;
-							break;
-						}
-					}
-					if(slot == -1) break;
-					
-					new skin, walkStyle;
-					if(random(2) == 0) {
-						new idx = random(sizeof(MaleSkins));
-						skin = MaleSkins[idx][0];
-						walkStyle = MaleSkins[idx][1];
-					} else {
-						new idx = random(sizeof(FemaleSkins));
-						skin = FemaleSkins[idx][0];
-						walkStyle = FemaleSkins[idx][1];
-					}
-					ResetPedestrianSlot(slot);
-					DestroyActor(StreamActors[slot]);
-					StreamActors[slot] = CreateActor(skin, nx, ny, nz + 1.0, 0.0);
-					SetActorInvulnerable(StreamActors[slot], false);
-					SetActorVirtualWorld(StreamActors[slot], GetPlayerVirtualWorld(i));
-					
-					new walkAnim[32];
-					format(walkAnim, sizeof(walkAnim), "%s", NameAnimations[walkStyle]);
-					ApplyActorAnimation(StreamActors[slot], "PED", walkAnim, 4.1, 1, 1, 1, 0, 0);
-					
-					ActorInUse[slot] = true;
-					ActorWalkStyle[slot] = walkStyle;
-					ActorFallenTick[slot] = 0;
-					
-					Path_SetActorWalk(StreamActors[slot], nodes[n], 1.2);
-					actorsNear++;
-				}
-			}
-		}
-	}
-	return 1;
-}
-
-forward ActorPhysicsTimer();
-public ActorPhysicsTimer()
-{
-	new tick = GetTickCount();
-	
-	// Check vehicle collisions and fallen recovery
-	for(new a=0; a<MAX_STREAM_ACTORS; a++) {
-		if(!ActorInUse[a]) continue;
-		if(ActorIsDead[a]) continue;
-		if (ActorFallenTick[a] > 0) {
-			if (tick - ActorFallenTick[a] > 2500) { // 2.5 seconds on the ground
-				ActorFallenTick[a] = 0;
-				ApplyActorAnimation(StreamActors[a], "PED", "getup_front", 4.1, 0, 0, 0, 0, 0); // Alzati
-				SetTimerEx("ResumeActorWalk", 1500, false, "i", a); // Riprendi a camminare quasi subito
-			}
-			continue;
-		}
-		
-		new Float:ax, Float:ay, Float:az;
-		GetActorPos(StreamActors[a], ax, ay, az);
-		
-		for(new i=0; i<MAX_PLAYERS; i++) {
-			if(!IsPlayerConnected(i) || GetPlayerState(i) != PLAYER_STATE_DRIVER) continue;
-			
-			new veh = GetPlayerVehicleID(i);
-			new Float:vx, Float:vy, Float:vz;
-			GetVehicleVelocity(veh, vx, vy, vz);
-			new Float:speed = floatsqroot(vx*vx + vy*vy);
-			
-			if (speed > 0.1) // Moving fast enough
-			{
-				new Float:px, Float:py, Float:pz;
-				GetVehiclePos(veh, px, py, pz);
-				
-				if (floatpower(ax - px, 2.0) + floatpower(ay - py, 2.0) < 3.5 * 3.5) { // Hit by vehicle
-					ActorTargetNode[a] = Path_GetActorNode(StreamActors[a]); // Salva rotta originale
-					Path_StopActorWalk(StreamActors[a]); // Ferma in C++
-					ApplyActorAnimation(StreamActors[a], "PED", "KO_skid_front", 4.1, 0, 1, 1, 1, 0); // Cadi
-					ActorFallenTick[a] = tick;
-					
-					CallLocalFunction("OnPedestrianHitByVeh", "ii", i, StreamActors[a]);
-					break; // Salta altri veicoli
-				}
-			}
-		}
-	}
-	
-	new actors[MAX_STREAM_ACTORS];
-	new Float:xs[MAX_STREAM_ACTORS];
-	new Float:ys[MAX_STREAM_ACTORS];
-	new Float:zs[MAX_STREAM_ACTORS];
-	new Float:angles[MAX_STREAM_ACTORS];
-	new count;
-	
-	Path_ProcessActors(actors, xs, ys, zs, angles, count, sizeof(actors));
-	
-	for(new i=0; i<count; i++)
-	{
-		SetActorPos(actors[i], xs[i], ys[i], zs[i] + 1.0);
-		if(floatabs(angles[i] - LastActorAngle[actors[i]]) > 0.5)
-		{
-			SetActorFacingAngle(actors[i], angles[i]);
-			LastActorAngle[actors[i]] = angles[i];
-		}
-	}
-	
-	if (BenchmarkMode)
-	{
-		new time = GetTickCount() - tick;
-		if (time > 0) printf("[Pedestrians Benchmark] Processed %d actors in %d ms.", count, time);
-	}
-	return 1;
-}
-
-forward ResumeActorWalk(slot);
-public ResumeActorWalk(slot)
-{
-	if(!ActorInUse[slot] || ActorFallenTick[slot] > 0) return;
-	
-	new Float:ax, Float:ay, Float:az;
-	GetActorPos(StreamActors[slot], ax, ay, az);
-	
-	if(ActorTargetNode[slot] != 0) {
-		Path_SetActorWalk(StreamActors[slot], ActorTargetNode[slot], 1.2);
-	}
-	
-	new walkAnim[32];
-	format(walkAnim, sizeof(walkAnim), "%s", NameAnimations[ActorWalkStyle[slot]]);
-	ApplyActorAnimation(StreamActors[slot], "PED", walkAnim, 4.1, 1, 1, 1, 0, 0);
-}
-
-public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY, Float:fZ)
-{
-	// Panic AI logic
-	new Float:px, Float:py, Float:pz;
-	GetPlayerPos(playerid, px, py, pz);
-	
-	for(new a=0; a<MAX_STREAM_ACTORS; a++)
-	{
-		if(!ActorInUse[a]) continue;
-		if(ActorIsDead[a]) continue;
-		new Float:ax, Float:ay, Float:az;
-		GetActorPos(StreamActors[a], ax, ay, az);
-		
-		new Float:dx = ax - px;
-		new Float:dy = ay - py;
-		if(floatpower(dx, 2.0) + floatpower(dy, 2.0) < 50.0 * 50.0) // Within 50m of gunshot
-		{
-			ApplyActorAnimation(StreamActors[a], "PED", "sprint_panic", 4.1, 1, 1, 1, 0, 0);
-			Path_SetActorSpeed(StreamActors[a], 5.0); // Fast sprint speed
-		}
-	}
-	
-	#if defined ped_OnPlayerWeaponShot
-		return ped_OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, fX, fY, fZ);
-	#else
-		return 1;
-	#endif
-}
-#if defined _ALS_OnPlayerWeaponShot
-	#undef OnPlayerWeaponShot
-#else
-	#define _ALS_OnPlayerWeaponShot
-#endif
-#define OnPlayerWeaponShot ped_OnPlayerWeaponShot
-#if defined ped_OnPlayerWeaponShot
-	forward ped_OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY, Float:fZ);
-#endif
-forward DespawnDeadPedestrian(slotId);
-public DespawnDeadPedestrian(slotId)
-{
-    ClearActorAnimations(StreamActors[slotId]);
-    ActorIsDead[slotId] = false;
-    new targetPlayer = -1;
-    for(new i = 0; i < MAX_PLAYERS; i++) {
-        if(IsPlayerConnected(i) && GetPlayerState(i) != PLAYER_STATE_NONE && GetPlayerState(i) != PLAYER_STATE_WASTED) {
-            targetPlayer = i;
-            break; // Ambil player pertama yang ketemu
-        }
-    }
-
-  
-    if(targetPlayer != -1)
-    {
-        new Float:px, Float:py, Float:pz;
-        GetPlayerPos(targetPlayer, px, py, pz);
-
-        new nodes[20];
-        // Cari node jalanan dalam radius 200m dari player tersebut
-        new count = Path_GetNodesInRange(px, py, pz, 200.0, nodes, sizeof(nodes));
-
-        if(count > 0)
-        {
-            
-            new randomNode = nodes[random(count)];
-            new Float:nx, Float:ny, Float:nz;
-
-            if(Path_GetNodePos(randomNode, nx, ny, nz))
-            {
-               
-                new newSkin, walkStyle;
-                if(random(2) == 0) {
-                    new idx = random(sizeof(MaleSkins));
-                    newSkin = MaleSkins[idx][0];
-                    walkStyle = MaleSkins[idx][1];
-                } else {
-                    new idx = random(sizeof(FemaleSkins));
-                    newSkin = FemaleSkins[idx][0];
-                    walkStyle = FemaleSkins[idx][1];
-                }
-                SetActorVirtualWorld(StreamActors[slotId], GetPlayerVirtualWorld(targetPlayer));
-                ActorHealth[slotId] = 100.0;
-                ActorFallenTick[slotId] = 0;
-                ActorTargetNode[slotId] = 0;
-                ActorWalkStyle[slotId] = walkStyle;
-
-               
-                SetActorPos(StreamActors[slotId], nx, ny, nz + 1.0);
-               
-                new walkAnim[32];
-                format(walkAnim, sizeof(walkAnim), "%s", NameAnimations[walkStyle]);
-                ApplyActorAnimation(StreamActors[slotId], "PED", walkAnim, 4.1, 1, 1, 1, 0, 0);
-                
-                Path_SetActorWalk(StreamActors[slotId], randomNode, 1.2);
-                ActorInUse[slotId] = true;
-                return 1;
-            }
-        }
-    }
-    
-    SetActorPos(StreamActors[slotId], 0.0, 0.0, 0.0);
-    SetActorVirtualWorld(StreamActors[slotId], 999999); 
-    ActorInUse[slotId] = false; 
-    return 1;
-}
-public OnPlayerGiveDamageActor(playerid, damaged_actorid, Float:amount, weaponid, bodypart)
-{
-	new slotId = -1;
-	for(new a=0; a<MAX_STREAM_ACTORS; a++) {
-		if(ActorInUse[a] && StreamActors[a] == damaged_actorid) {
-			slotId = a;
-			break;
-		}
-	}
-	
-	if(slotId != -1) {
-		
-		ActorHealth[slotId] -= amount;
-
-		if(ActorHealth[slotId] <= 0.0) 
-		{
-		    Path_StopActorWalk(damaged_actorid); 
-		    ApplyActorAnimation(damaged_actorid, "PED", "KO_shot_face", 4.1, 0, 1, 1, 1, 0); 
-		    
-		    ActorIsDead[slotId] = true;
-		    CallLocalFunction("OnPedestrianDeath", "iii", damaged_actorid, playerid, weaponid);
-		    
-		   
-		    SetTimerEx("DespawnDeadPedestrian", 10000, false, "i", slotId);
-		}
-		else 
-		{
-			
-			new type = (weaponid == 0) ? 0 : 1;
-			CallLocalFunction("OnPedestrianGetDamage", "iii", damaged_actorid, playerid, type);
-		}
-	}
-	
-	#if defined ped_OnPlayerGiveDamageActor
-		return ped_OnPlayerGiveDamageActor(playerid, damaged_actorid, amount, weaponid, bodypart);
-	#else
-		return 1;
-	#endif
-}
-#if defined _ALS_OnPlayerGiveDamageActor
-	#undef OnPlayerGiveDamageActor
-#else
-	#define _ALS_OnPlayerGiveDamageActor
-#endif
-#define OnPlayerGiveDamageActor ped_OnPlayerGiveDamageActor
-#if defined ped_OnPlayerGiveDamageActor
-	forward ped_OnPlayerGiveDamageActor(playerid, damaged_actorid, Float:amount, weaponid, bodypart);
-#endif
-
-new PlayerTargetedPedestrian[MAX_PLAYERS] = {-1, ...};
-forward OnPlayerAimPedestrian(playerid, pedestrianid);
-
-public OnPlayerUpdate(playerid)
-{
-	new targetActor = GetPlayerTargetActor(playerid);
-	if(targetActor != INVALID_ACTOR_ID)
-	{
-		new bool:isPed = false;
-		for(new a=0; a<MAX_STREAM_ACTORS; a++) {
-			if(ActorInUse[a] && StreamActors[a] == targetActor) {
-				isPed = true;
-				break;
-			}
-		}
-		
-		if(isPed)
-		{
-			if(PlayerTargetedPedestrian[playerid] != targetActor)
-			{
-				PlayerTargetedPedestrian[playerid] = targetActor;
-				CallLocalFunction("OnPlayerAimPedestrian", "ii", playerid, targetActor);
-			}
-		}
-		else
-		{
-			PlayerTargetedPedestrian[playerid] = -1;
-		}
-	}
-	else
-	{
-		if (PlayerTargetedPedestrian[playerid] != -1) {
-			PlayerTargetedPedestrian[playerid] = -1;
-		}
-	}
-
-	#if defined ped_OnPlayerUpdate
-		return ped_OnPlayerUpdate(playerid);
-	#else
-		return 1;
-	#endif
-}
-#if defined _ALS_OnPlayerUpdate
-	#undef OnPlayerUpdate
-#else
-	#define _ALS_OnPlayerUpdate
-#endif
-#define OnPlayerUpdate ped_OnPlayerUpdate
-#if defined ped_OnPlayerUpdate
-	forward ped_OnPlayerUpdate(playerid);
-#endif

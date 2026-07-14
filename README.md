@@ -1,4 +1,4 @@
-# SA-MP Pedestrians & ActorPaths
+# SA-MP Pedestrians
 
 A comprehensive system for SA-MP (San Andreas Multiplayer) that populates your server with intelligent pedestrians. It utilizes a highly optimized C++ plugin combined with a PAWN script (pedestrians.inc) to handle pathfinding, spawning, and interaction.
 
@@ -67,9 +67,44 @@ Easily applies a specific animation to the pedestrian (wrapper for ApplyActorAni
 ### GetClosestPedestrianID(playerid)
 Returns the ID of the pedestrian (actor) closest to a specific player.
 
+### SetPedestrianHealth(actorid, Float:health)
+Sets the health of the pedestrian.
+
+### GetPedestrianHealth(actorid)
+Returns the current health of the pedestrian.
+
+### SetPedestrianSpeed(actorid, Float:speed)
+Changes the current movement speed of the pedestrian (default walking is 1.2, panic sprint is 5.0).
+
+### MakePedestrianPanic(actorid, duration_ms)
+Forces a pedestrian into a panic state (sprinting away) for the specified duration in milliseconds.
+
+### IsPedestrianPanicking(actorid)
+Returns 1 if the pedestrian is currently in a panic state, otherwise 0.
+
+### SetPedestrianSkin(actorid, skinid)
+Dynamically changes the skin of an existing pedestrian, recreating them and reapplying their current animation state.
+
+### IsPlayerInFrontOfPed(playerid, actorid)
+Checks if the specified player is physically in front of the pedestrian within their 180-degree visual cone and close range (returns 1 if true, 0 if behind or far away).
+Returns the ID of the pedestrian (actor) closest to a specific player.
+
 ---
 
 ## Callbacks
+
+### OnPedestrianStateChange(actorid, oldstate, newstate)
+Triggered whenever a pedestrian changes their internal state (e.g., from WALKING to PANIC, or FALLEN to DEAD).
+States available:
+* 1: PED_STATE_WALKING
+* 2: PED_STATE_PANIC
+* 3: PED_STATE_FALLEN
+* 4: PED_STATE_STOPPED
+* 5: PED_STATE_DEAD
+
+### OnPedestrianDeath(actorid, killerid, reason)
+Triggered when a pedestrian's health drops to 0.0. The killerid specifies the player who dealt the final damage (or INVALID_PLAYER_ID), and 
+eason contains the weapon or damage source.
 
 ### OnPedestrianGetDamage(pedestrianid, playerid, type)
 Called when a player hits a pedestrian.
