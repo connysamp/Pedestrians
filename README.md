@@ -42,9 +42,9 @@ native InitPedestrians();
 * **Description:** Initializes the system. Must be called under `OnGameModeInit()`.
 
 ```pawn
-native IgnorePedestrianNode(nodeid);
+IgnorePedestrianNode(nodeid);
 ```
-* **Description:** Ignores a specific node so pedestrians will never walk on it. Great if you have custom maps placed on existing sidewalks. Must be called under `OnGameModeInit()`.
+* **Description:** Ignores a specific node so pedestrians will never walk on it. This helper is provided by `pedestrians.inc` and internally calls the plugin native `Path_IgnoreNode`. Must be called under `OnGameModeInit()`.
 
 ```pawn
 native GetPedestrianNode(pedestrianid);

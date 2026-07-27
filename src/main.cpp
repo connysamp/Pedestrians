@@ -859,6 +859,7 @@ cell AMX_NATIVE_CALL native_ApplyPedestrianAnim(AMX *amx, cell *params) {
 AMX_NATIVE_INFO PluginNatives[] = {
     {"Path_AddMaleSkin", n_Path_AddMaleSkin},
     {"Path_AddFemaleSkin", n_Path_AddFemaleSkin},
+    {"Path_IgnoreNode", native_IgnorePedestrianNode},
     {"GetClosestPedestrianID", native_GetClosestPedestrianID},
     {"GetPedestrianSex", native_GetPedestrianSex},
     {"StopPedestrian", native_StopPedestrian},
