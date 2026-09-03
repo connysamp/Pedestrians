@@ -1,3 +1,0 @@
-/mnt/c/Users/Admin/Desktop/Pedestrians/build-linux/CMakeFiles/pedestrians.dir
-/mnt/c/Users/Admin/Desktop/Pedestrians/build-linux/CMakeFiles/edit_cache.dir
-/mnt/c/Users/Admin/Desktop/Pedestrians/build-linux/CMakeFiles/rebuild_cache.dir

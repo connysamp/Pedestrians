@@ -1,3 +1,0 @@
-C:/Users/Admin/Desktop/Pedestrians/build/CMakeFiles/pedestrians.dir
-C:/Users/Admin/Desktop/Pedestrians/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/Admin/Desktop/Pedestrians/build/CMakeFiles/ZERO_CHECK.dir

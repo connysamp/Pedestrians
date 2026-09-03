@@ -1,0 +1,36 @@
+# Build directories
+build/*
+build_linux/*
+build-linux/
+
+# Keep prebuilt release binaries
+!build/Release/
+!build/Release/pedestrians.dll
+!build_linux/pedestrians.so
+
+# Visual Studio & CMake files
+*.vcxproj*
+*.sln
+*.dir/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+*.log
+*.marks
+*.internal
+*.o
+*.obj
+*.d
+*.tlog
+*.recipe
+*.lastbuildstate
+*.idb
+*.pdb
+*.ilk
+*.exp
+*.lib
+.vs/
+.vscode/
+bin/

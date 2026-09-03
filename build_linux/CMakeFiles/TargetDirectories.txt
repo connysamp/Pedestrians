@@ -1,3 +1,0 @@
-/mnt/c/Users/Admin/Desktop/ActorPaths/build_linux/CMakeFiles/pedestrians.dir
-/mnt/c/Users/Admin/Desktop/ActorPaths/build_linux/CMakeFiles/edit_cache.dir
-/mnt/c/Users/Admin/Desktop/ActorPaths/build_linux/CMakeFiles/rebuild_cache.dir

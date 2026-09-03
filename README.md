@@ -1,36 +1,62 @@
 # SA-MP Pedestrians
 
-A comprehensive system for SA-MP (San Andreas Multiplayer) that populates your server with intelligent pedestrians. It utilizes a highly optimized C++ plugin combined with a PAWN script (pedestrians.inc) to handle pathfinding, spawning, and interaction.
+A comprehensive system for SA-MP and open.mp that populates your server with ambient pedestrians. It uses a custom C++ plugin and a PAWN include (`pedestrians.inc`) to manage pedestrian movement, spawning, zone skins, and player interactions.
 
 ## Why Actors Instead of NPCs?
-The biggest advantage of this system is that it uses SA-MP "Actors" instead of standard SA-MP "NPCs". 
-* **Zero Player Slots Consumed:** Traditional NPCs take up valuable server player slots and require individual connection instances. Actors do not use player slots.
-* **Extreme Performance & Scalability:** Standard NPCs require individual PAWN scripts and pre-recorded playback files, putting heavy strain on the server if you want hundreds of them. This system uses a highly optimized C++ plugin to parse thousands of nodes and dynamically stream Actors only around active players (Global Pool System).
-* **Dynamic Interaction:** Traditional NPCs follow static paths. Our Actors react dynamically to their environment: they can raise their hands if aimed at, stop walking, and sprint away in panic if they take damage or hear gunshots.
+Using SA-MP Actors offers key advantages over traditional NPCs:
+* **Zero Player Slots Consumed:** Actors do not take up server player slots or connection slots.
+* **Lightweight & Scalable:** The system dynamically streams pedestrians only around active players using a fast C++ plugin.
+* **Dynamic Reactions:** Pedestrians react when shot at, aimed at, or hit by vehicles.
 
 ## Core Features
-* **Global Pool Spawning:** Pedestrians are created only when players are nearby and are intelligently recycled to save memory.
-* **C++ Pathfinding:** Extreme fluidity and performance. The C++ plugin loads thousands of nodes (pedpaths.json) and moves pedestrians in the background.
-* **Custom Walk Styles:** Each pedestrian is assigned the correct walking animation based on their skin ID (e.g., gangsters, elderly, women, civilians). This is fully configurable via 2D arrays.
-* **Interaction and Panic AI:** Pedestrians react when shot or punched, and can be targeted with a weapon (OnPlayerAimPedestrian).
-* **Ignored Nodes:** Ability to exclude specific nodes at server load to prevent pedestrians from walking onto custom mapped areas.
-* **Network Optimization:** Angle caching and a balanced physical timer frequency prevent the "ackslimit" warning typical of heavy NPC servers.
-* **Predictive Spawning & Anti-Clustering:** The system calculates player speed and direction using vector math to dynamically spawn pedestrians up to 150m ahead on their path, ensuring towns are populated naturally without nodes being clustered together.
-* **Cross-Platform:** The C++ plugin compiles to both `.dll` for Windows and `.so` (32-bit) for Linux SA-MP servers.
-* **open.mp Compatible:** The project does not rely on memory hacking or hooking. It uses standard AMX natives, making it 100% fully compatible with open.mp (Open Multiplayer) right out of the box.
+* **Global Pool Spawning:** Pedestrians are dynamically created near active players and recycled to save memory.
+* **Optional ColAndreas:** Support for ColAndreas to calculate terrain height.
+* **GTA SA Zone Skins:** Integrates San Andreas zones (`zone_skins.json`) to spawn area-appropriate skins (countryside skins in rural areas, suits in Las Vegas, etc.).
+* **Interior Toggle:** Enable or disable pedestrian spawning inside interiors.
+* **Interaction AI:** Pedestrians react when shot, punched, aimed at with a gun, or hit by cars.
+* **Ignored Nodes:** Exclude specific nodes at startup so pedestrians avoid custom mapped objects or areas.
 
 ---
 
 ## Installation
 
-1. Place "pedestrians.dll" inside the "plugins/" directory and append "pedestrians" to your "server.cfg".
-2. Add "ackslimit 10000" to your "server.cfg" to prevent network warnings caused by rapid actor position updates.
-3. Place "pedpaths.json" inside the "scriptfiles/" directory.
-4. Place "pedestrians.inc" inside the "pawno/include/" directory.
-5. Open your gamemode and include the file:
+1. Place `pedestrians.dll` in your `plugins/` folder and add `pedestrians` to `server.cfg`.
+2. Set `ackslimit 10000` in `server.cfg`.
+3. Copy `pedpaths.json` and `zone_skins.json` into your `scriptfiles/` folder.
+4. Copy `pedestrians.inc` into `pawno/include/`.
+5. Include it in your gamemode:
    ```pawn
    #include <pedestrians>
    ```
+
+---
+
+## PAWN Configuration
+
+```pawn
+#define PED_USE_COLANDREAS true
+```
+* Set to `true` to enable ColAndreas height calculations, or `false` to disable.
+
+```pawn
+#define PED_MAX_POOL 500
+```
+* Maximum total actors streamed in the server pool (Default: `500`).
+
+```pawn
+#define PED_MAX_PER_PLAYER 12
+```
+* Maximum pedestrians spawned around each player (Default: `12`).
+
+```pawn
+#define PED_SPAWN_DENSITY 1.0
+```
+* Spawn density multiplier applied to zone limits (Default: `1.0`). Set higher (e.g. `1.5`) for denser crowds or lower (e.g. `0.5`) for fewer pedestrians.
+
+```pawn
+#define PED_STREAM_DISTANCE 220.0
+```
+* Distance around players within which pedestrians are spawned and kept active (Default: `220.0`).
 
 ---
 
@@ -39,190 +65,149 @@ The biggest advantage of this system is that it uses SA-MP "Actors" instead of s
 ```pawn
 native InitPedestrians();
 ```
-* **Description:** Initializes the system. Must be called under `OnGameModeInit()`.
+* Initializes the pedestrian system under `OnGameModeInit()` using configured `#define` defaults.
 
 ```pawn
-IgnorePedestrianNode(nodeid);
+native Path_SetMaxActorsInPool(count);
+native Path_GetMaxActorsInPool();
 ```
-* **Description:** Ignores a specific node so pedestrians will never walk on it. This helper is provided by `pedestrians.inc` and internally calls the plugin native `Path_IgnoreNode`. Must be called under `OnGameModeInit()`.
+* Sets or retrieves the total maximum streamed actors in the pool (Default: `500`).
+
+```pawn
+native Path_SetMaxActorsPerPlayer(count);
+native Path_GetMaxActorsPerPlayer();
+```
+* Sets or retrieves the maximum pedestrians near any single player (Default: `12`).
+
+```pawn
+native Path_SetSpawnDensity(Float:density);
+native Float:Path_GetSpawnDensity();
+```
+* Sets or retrieves the spawn density multiplier (Default: `1.0`).
+
+```pawn
+native Path_SetStreamingDistance(Float:distance);
+native Float:Path_GetStreamingDistance();
+```
+* Sets or retrieves the streaming / despawn distance around players (Default: `220.0`).
+
+```pawn
+native Path_SetUseColAndreas(bool:use);
+```
+* Enables or disables ColAndreas height calculation at runtime.
+
+```pawn
+native TogglePedInInterior(bool:toggle);
+```
+* Enables or disables pedestrian spawning inside interiors.
+
+```pawn
+native IgnorePedestrianNode(nodeid);
+```
+* Excludes a specific node so pedestrians will not walk on it.
 
 ```pawn
 native GetPedestrianNode(pedestrianid);
 ```
-* **Description:** Returns the ID of the destination node the pedestrian is currently walking towards.
+* Returns the target node ID the pedestrian is walking towards.
 
 ```pawn
 native StopPedestrian(pedestrianid);
 ```
-* **Description:** Immediately stops the pedestrian (sets speed to 0.0).
+* Stops pedestrian movement.
 
 ```pawn
 native ResumePedestrian(pedestrianid);
 ```
-* **Description:** Resumes the pedestrian's walk towards their target node (restores speed to 1.2).
+* Resumes pedestrian walking.
 
 ```pawn
 native ApplyPedestrianAnim(pedestrianid, animlib[], animname[], Float:fDelta, loop, lockx, locky, freeze, time);
 ```
-* **Description:** Easily applies a specific animation to the pedestrian (wrapper for `ApplyActorAnimation`).
+* Applies an animation to a pedestrian actor.
 
 ```pawn
 native GetClosestPedestrianID(playerid);
 ```
-* **Description:** Returns the ID of the pedestrian (actor) closest to a specific player.
+* Returns the ID of the pedestrian closest to a player.
 
 ```pawn
 native SetPedestrianHealth(actorid, Float:health);
 ```
-* **Description:** Sets the health of the pedestrian.
+* Sets pedestrian health.
 
 ```pawn
 native Float:GetPedestrianHealth(actorid);
 ```
-* **Description:** Returns the current health of the pedestrian.
+* Returns pedestrian health.
 
 ```pawn
 native SetPedestrianSpeed(actorid, Float:speed);
 ```
-* **Description:** Changes the current movement speed of the pedestrian (default walking is 1.2, panic sprint is 5.0).
+* Sets pedestrian speed.
 
 ```pawn
 native MakePedestrianPanic(actorid, duration_ms);
 ```
-* **Description:** Forces a pedestrian into a panic state (sprinting away) for the specified duration in milliseconds.
+* Forces a pedestrian to panic and run for a duration in milliseconds.
 
 ```pawn
 native IsPedestrianPanicking(actorid);
 ```
-* **Description:** Returns 1 if the pedestrian is currently in a panic state, otherwise 0.
+* Returns 1 if panicking, 0 otherwise.
 
 ```pawn
 native SetPedestrianSkin(actorid, skinid);
 ```
-* **Description:** Dynamically changes the skin of an existing pedestrian, recreating them and reapplying their current animation state.
+* Changes a pedestrian's skin ID.
 
 ```pawn
 native IsPlayerInFrontOfPed(playerid, actorid);
 ```
-* **Description:** Checks if the specified player is physically in front of the pedestrian within their 180-degree visual cone and close range. Returns 1 if true, 0 if behind or far away.
+* Checks if a player is in front of the pedestrian.
 
 ---
 
 ## Callbacks
 
 ### OnPedestrianStateChange(actorid, oldstate, newstate)
-Triggered whenever a pedestrian changes their internal state (e.g., from WALKING to PANIC, or FALLEN to DEAD).
-States available:
-* 1: PED_STATE_WALKING
-* 2: PED_STATE_PANIC
-* 3: PED_STATE_FALLEN
-* 4: PED_STATE_STOPPED
-* 5: PED_STATE_DEAD
+Called when a pedestrian changes state:
+* `1`: `PED_STATE_WALKING`
+* `2`: `PED_STATE_PANIC`
+* `3`: `PED_STATE_FALLEN`
+* `4`: `PED_STATE_STOPPED`
+* `5`: `PED_STATE_DEAD`
 
 ### OnPedestrianDeath(actorid, killerid, reason)
-Triggered when a pedestrian's health drops to 0.0. The killerid specifies the player who dealt the final damage (or INVALID_PLAYER_ID), and 
-eason contains the weapon or damage source.
+Called when a pedestrian dies.
 
 ### OnPedestrianGetDamage(pedestrianid, playerid, type)
-Called when a player hits a pedestrian.
-* type 0: Melee / Fist damage
-* type 1: Firearm damage
-
-**Usage Example:**
-```pawn
-public OnPedestrianGetDamage(pedestrianid, playerid, type)
-{
-    StopPedestrian(pedestrianid);
-    
-    new str[128];
-    new nodeid = GetPedestrianNode(pedestrianid);
-    format(str, sizeof(str), "You hit pedestrian ID %d, type: %d (Target Node: %d)", pedestrianid, type, nodeid);
-    SendClientMessage(playerid, -1, str);
-    
-    // Make them react and talk
-    ApplyPedestrianAnim(pedestrianid, "PED", "IDLE_chat", 4.1, 1, 0, 0, 0, 0);
-    return 1;
-}
-```
+Called when a pedestrian takes damage.
 
 ### OnPlayerAimPedestrian(playerid, pedestrianid)
-Called (only once per aim) when the player aims at a pedestrian with a firearm.
-*(Note: Requires EnablePlayerCameraTarget(playerid, 1); under OnPlayerConnect to function).*
+Called when a player aims at a pedestrian with a weapon.
 
-**Usage Example:**
-```pawn
-public OnPlayerAimPedestrian(playerid, pedestrianid)
-{
-    StopPedestrian(pedestrianid);
-    ApplyPedestrianAnim(pedestrianid, "SHOP", "SHP_Rob_HandsUp", 4.1, 0, 0, 0, 1, 0);
-    
-    SendClientMessage(playerid, -1, "You aimed at the pedestrian! They raised their hands.");
-    return 1;
-}
-```
-
-### OnPedestrianHitByVeh(playerid, pedestrianid)
-Called when a pedestrian is run over by a player's vehicle. By default, the pedestrian will fall to the ground for a few seconds, stand back up, and seamlessly resume their original route.
-
-**Usage Example:**
-```pawn
-public OnPedestrianHitByVeh(playerid, pedestrianid)
-{
-    new str[128];
-    format(str, sizeof(str), "You ran over pedestrian ID %d!", pedestrianid);
-    SendClientMessage(playerid, -1, str);
-    return 1;
-}
-```
-
----
-
-## Configuration (Skins and Walk Styles)
-
-Inside "pedestrians.inc" you will find an enum containing all walk styles and two configurable 2D arrays (MaleSkins and FemaleSkins).
-To add new skins, simply insert {SKIN_ID, WALK_STYLE} into the respective array and the pedestrian will automatically adopt that walking animation upon spawning.
-
-```pawn
-new MaleSkins[][2] = {
-	{1, WALK_OLD}, 
-	{2, WALK_CIVI},
-	{18, WALK_GANG1},
-	{24, WALK_FAT}
-};
-```
+### OnPedestrianHitByVeh(playerid, vehicleid, actorid)
+Called when a vehicle hits a pedestrian.
 
 ---
 
 ## Building from Source
 
-This project uses CMake to generate the build files. The plugin must be compiled as a **32-bit (x86)** shared library because the SA-MP and open.mp server executables are 32-bit.
+### Windows (MSVC 32-bit)
 
-### Windows (MSVC)
-1. Install [CMake](https://cmake.org/) and Visual Studio (with C++ build tools).
-2. Open a terminal or PowerShell in the repository root.
-3. Generate the build files:
-   ```cmd
-   mkdir build
-   cd build
-   cmake .. -A Win32
-   ```
-4. Compile the plugin:
-   ```cmd
-   cmake --build . --config Release
-   ```
-5. You will find `pedestrians.dll` in the `build/Release/` directory.
+```cmd
+mkdir build
+cd build
+cmake .. -A Win32
+cmake --build . --config Release
+```
 
-### Linux (GCC)
-1. Install CMake and the 32-bit compiler libraries (e.g., `g++-multilib` on Ubuntu/Debian).
-   ```bash
-   sudo apt-get install cmake g++-multilib
-   ```
-2. Open a terminal in the repository root.
-3. Generate the build files and compile:
-   ```bash
-   mkdir build_linux
-   cd build_linux
-   cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
-   make
-   ```
-4. You will find `libpedestrians.so` in the `build_linux/` directory. (Rename it to `pedestrians.so` in your server plugins).
+### Linux (GCC 32-bit)
+
+```bash
+mkdir build_linux
+cd build_linux
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32
+make
+```

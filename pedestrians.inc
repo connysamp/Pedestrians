@@ -5,47 +5,52 @@
 
 #include <a_samp>
 
-enum
-{
-	WALK_PLAYER = 0,
-	WALK_CIVI,
-	WALK_GANG1,
-	WALK_GANG2,
-	WALK_OLD,
-	WALK_FATOLD,
-	WALK_FAT,
-	WOMAN_WALKOLD,
-	WOMAN_WALKFATOLD,
-	WALK_SHUFFLE,
-	WOMAN_WALKNORM,
-	WOMAN_WALKBUSY,
-	WOMAN_WALKPRO,
-	WOMAN_WALKSEXY,
-	WALK_DRUNK,
-	WALK_WUZI
-};
-
-new MaleSkins[][2] = {
-	{1, WALK_OLD}, {2, WALK_CIVI}, {7, WALK_CIVI}, {14, WALK_CIVI}, {15, WALK_CIVI},
-	{18, WALK_GANG1}, {20, WALK_GANG2}, {21, WALK_GANG1}, {22, WALK_GANG2}, {23, WALK_CIVI},
-	{24, WALK_FAT}, {25, WALK_GANG1}, {26, WALK_CIVI}, {27, WALK_CIVI}, {28, WALK_GANG2},
-	{29, WALK_GANG1}, {30, WALK_GANG2}, {32, WALK_FAT}, {33, WALK_CIVI}, {34, WALK_CIVI}, {35, WALK_OLD}
-};
-
-new FemaleSkins[][2] = {
-	{9, WOMAN_WALKNORM}, {12, WOMAN_WALKBUSY}, {13, WOMAN_WALKNORM}, {31, WOMAN_WALKNORM},
-	{40, WOMAN_WALKNORM}, {41, WOMAN_WALKNORM}, {54, WOMAN_WALKNORM}, {55, WOMAN_WALKBUSY},
-	{56, WOMAN_WALKNORM}, {64, WOMAN_WALKPRO}, {65, WOMAN_WALKNORM}, {69, WOMAN_WALKNORM},
-	{75, WOMAN_WALKPRO}, {76, WOMAN_WALKBUSY}, {77, WOMAN_WALKOLD}, {85, WOMAN_WALKSEXY},
-	{87, WOMAN_WALKBUSY}, {88, WOMAN_WALKOLD}, {89, WOMAN_WALKOLD}, {90, WOMAN_WALKBUSY},
-	{92, WOMAN_WALKSEXY}
-};
-
 #define PED_STATE_WALKING 1
 #define PED_STATE_PANIC 2
 #define PED_STATE_FALLEN 3
 #define PED_STATE_STOPPED 4
 #define PED_STATE_DEAD 5
+
+#define DEFAULT_PED_MAX_POOL            500
+#define DEFAULT_PED_MAX_PER_PLAYER      12
+#define DEFAULT_PED_SPAWN_DENSITY       1.0
+#define DEFAULT_PED_STREAM_DISTANCE     220.0
+
+#if !defined PED_USE_COLANDREAS
+	#define PED_USE_COLANDREAS true
+#endif
+
+#if !defined PED_MAX_POOL
+	#define PED_MAX_POOL DEFAULT_PED_MAX_POOL
+#endif
+
+#if !defined PED_MAX_PER_PLAYER
+	#define PED_MAX_PER_PLAYER DEFAULT_PED_MAX_PER_PLAYER
+#endif
+
+#if !defined PED_SPAWN_DENSITY
+	#define PED_SPAWN_DENSITY DEFAULT_PED_SPAWN_DENSITY
+#endif
+
+#if !defined PED_STREAM_DISTANCE
+	#define PED_STREAM_DISTANCE DEFAULT_PED_STREAM_DISTANCE
+#endif
+
+native Path_SetUseColAndreas(bool:use);
+native TogglePedInInterior(bool:toggle);
+native Path_SetTime(hour, minute);
+
+native Path_SetMaxActorsInPool(count);
+native Path_GetMaxActorsInPool();
+
+native Path_SetMaxActorsPerPlayer(count);
+native Path_GetMaxActorsPerPlayer();
+
+native Path_SetSpawnDensity(Float:density);
+native Float:Path_GetSpawnDensity();
+
+native Path_SetStreamingDistance(Float:distance);
+native Float:Path_GetStreamingDistance();
 
 native Path_AddMaleSkin(skinid, walkstyle);
 native Path_AddFemaleSkin(skinid, walkstyle);
@@ -74,14 +79,21 @@ forward OnPedestrianDeath(actorid, killerid, reason);
 
 stock InitPedestrians()
 {
-	for(new i=0; i<sizeof(MaleSkins); i++) {
-		Path_AddMaleSkin(MaleSkins[i][0], MaleSkins[i][1]);
+#if PED_USE_COLANDREAS
+	if(!Path_SetUseColAndreas(true))
+	{
+		print("[Pedestrians] WARNING: PED_USE_COLANDREAS is set to true but ColAndreas plugin is missing.");
+		print("[Pedestrians] Falling back to default coordinate calculation method.");
 	}
-	for(new i=0; i<sizeof(FemaleSkins); i++) {
-		Path_AddFemaleSkin(FemaleSkins[i][0], FemaleSkins[i][1]);
-	}
-	print("[Pedestrians] PAWN Configuration loaded.");
-	PrintIgnoredNodesCount();
+#else
+	Path_SetUseColAndreas(false);
+#endif
+	
+	TogglePedInInterior(false);
+	Path_SetMaxActorsInPool(PED_MAX_POOL);
+	Path_SetMaxActorsPerPlayer(PED_MAX_PER_PLAYER);
+	Path_SetSpawnDensity(PED_SPAWN_DENSITY);
+	Path_SetStreamingDistance(PED_STREAM_DISTANCE);
 }
 
 stock IgnorePedestrianNode(nodeid)
